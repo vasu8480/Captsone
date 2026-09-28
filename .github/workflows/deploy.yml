@@ -49,7 +49,19 @@ jobs:
           docker rm -f starter-app-staging || true
           docker run -d --rm --name starter-app-staging -p 8000:8000 -e PORT=8000 -e APP_ENV=staging "starter-app:${{ inputs.version }}"
       - name: Wait for container to be ready
-        run: sleep 2
+        run: |
+          echo "Waiting for staging container to be ready..."
+          for i in {1..30}; do
+            if curl -sf http://127.0.0.1:8000/health > /dev/null 2>&1; then
+              echo "✅ Container is ready"
+              exit 0
+            fi
+            echo "Attempt $i/30: Waiting for container..."
+            sleep 1
+          done
+          echo "❌ Container failed to start"
+          docker logs starter-app-staging
+          exit 1
       - name: Smoke test staging
         run: ./scripts/smoke.sh http://127.0.0.1:8000
       - name: Stop staging container
@@ -76,7 +88,19 @@ jobs:
           docker rm -f starter-app-production || true
           docker run -d --rm --name starter-app-production -p 8001:8000 -e PORT=8000 -e APP_ENV=production "starter-app:${{ inputs.version }}"
       - name: Wait for container to be ready
-        run: sleep 2
+        run: |
+          echo "Waiting for production container to be ready..."
+          for i in {1..30}; do
+            if curl -sf http://127.0.0.1:8001/health > /dev/null 2>&1; then
+              echo "✅ Container is ready"
+              exit 0
+            fi
+            echo "Attempt $i/30: Waiting for container..."
+            sleep 1
+          done
+          echo "❌ Container failed to start"
+          docker logs starter-app-production
+          exit 1
       - name: Smoke test production
         run: ./scripts/smoke.sh http://127.0.0.1:8001
       - name: Stop production container
