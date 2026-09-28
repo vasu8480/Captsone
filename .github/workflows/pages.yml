@@ -26,7 +26,7 @@ jobs:
           mkdir -p docs
       - name: Build landing page
         run: |
-          cat > docs/index.html << 'EOF'
+          cat > docs/index.html <<- 'EOF'
           <!DOCTYPE html>
           <html lang="en">
           <head>
@@ -113,7 +113,7 @@ jobs:
           EOF
       - name: Build README page
         run: |
-          cat > docs/README.html << 'EOF'
+          cat > docs/README.html <<- 'EOF'
           <!DOCTYPE html>
           <html lang="en">
           <head>
@@ -205,7 +205,7 @@ curl http://127.0.0.1:8000/health</code></pre>
           EOF
       - name: Build API page
         run: |
-          cat > docs/api.html << 'EOF'
+          cat > docs/api.html <<- 'EOF'
           <!DOCTYPE html>
           <html lang="en">
           <head>
