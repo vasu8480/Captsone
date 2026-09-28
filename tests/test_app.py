@@ -1,5 +1,3 @@
-import pytest
-
 from src.app import build_response
 
 
