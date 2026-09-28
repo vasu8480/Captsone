@@ -43,18 +43,38 @@ jobs:
       - name: Load image
         run: |
           echo "Loading Docker image from artifact..."
-          docker load < /tmp/starter-app.tar.gz
+          if docker load < /tmp/starter-app.tar.gz; then
+            echo "✅ Image loaded successfully"
+          else
+            echo "❌ Failed to load image"
+            exit 1
+          fi
           echo "Available images:"
-          docker images | grep starter-app
+          docker images | grep starter-app || echo "No starter-app images found!"
       - name: Deploy to staging
         run: ./scripts/deploy.sh staging "${{ inputs.version }}"
       - name: Start staging container
         run: |
           docker rm -f starter-app-staging || true
           echo "Starting container with image: starter-app:${{ inputs.version }}"
-          docker run -d --rm --name starter-app-staging -p 8000:8000 -e PORT=8000 -e APP_ENV=staging "starter-app:${{ inputs.version }}"
-          echo "Container started, checking status..."
-          docker ps | grep starter-app-staging || echo "Container not found in ps output"
+          echo "Attempting docker run..."
+          if docker run -d --rm --name starter-app-staging -p 8000:8000 -e PORT=8000 -e APP_ENV=staging "starter-app:${{ inputs.version }}"; then
+            echo "✅ Docker run command succeeded"
+            sleep 1
+            echo "Checking if container is running..."
+            if docker ps | grep -q starter-app-staging; then
+              echo "✅ Container is running"
+              docker inspect starter-app-staging | grep -A 5 Status
+            else
+              echo "❌ Container exited immediately"
+              docker ps -a | grep starter-app-staging
+              docker logs starter-app-staging 2>&1 || echo "No logs available"
+              exit 1
+            fi
+          else
+            echo "❌ Docker run command failed"
+            exit 1
+          fi
       - name: Wait for container to be ready
         run: |
           echo "Waiting for staging container to be ready..."
@@ -65,8 +85,8 @@ jobs:
                 exit 0
               fi
             else
-              echo "Attempt $i/30: Container not running, checking logs..."
-              docker logs starter-app-staging 2>&1 || echo "Could not retrieve logs"
+              echo "Attempt $i/30: Container not running"
+              docker ps -a | grep starter-app-staging || echo "Container not found"
             fi
             echo "Attempt $i/30: Waiting for container..."
             sleep 1
@@ -95,18 +115,38 @@ jobs:
       - name: Load image
         run: |
           echo "Loading Docker image from artifact..."
-          docker load < /tmp/starter-app.tar.gz
+          if docker load < /tmp/starter-app.tar.gz; then
+            echo "✅ Image loaded successfully"
+          else
+            echo "❌ Failed to load image"
+            exit 1
+          fi
           echo "Available images:"
-          docker images | grep starter-app
+          docker images | grep starter-app || echo "No starter-app images found!"
       - name: Deploy to production
         run: ./scripts/deploy.sh production "${{ inputs.version }}"
       - name: Start production container
         run: |
           docker rm -f starter-app-production || true
           echo "Starting container with image: starter-app:${{ inputs.version }}"
-          docker run -d --rm --name starter-app-production -p 8001:8000 -e PORT=8000 -e APP_ENV=production "starter-app:${{ inputs.version }}"
-          echo "Container started, checking status..."
-          docker ps | grep starter-app-production || echo "Container not found in ps output"
+          echo "Attempting docker run..."
+          if docker run -d --rm --name starter-app-production -p 8001:8000 -e PORT=8000 -e APP_ENV=production "starter-app:${{ inputs.version }}"; then
+            echo "✅ Docker run command succeeded"
+            sleep 1
+            echo "Checking if container is running..."
+            if docker ps | grep -q starter-app-production; then
+              echo "✅ Container is running"
+              docker inspect starter-app-production | grep -A 5 Status
+            else
+              echo "❌ Container exited immediately"
+              docker ps -a | grep starter-app-production
+              docker logs starter-app-production 2>&1 || echo "No logs available"
+              exit 1
+            fi
+          else
+            echo "❌ Docker run command failed"
+            exit 1
+          fi
       - name: Wait for container to be ready
         run: |
           echo "Waiting for production container to be ready..."
@@ -117,8 +157,8 @@ jobs:
                 exit 0
               fi
             else
-              echo "Attempt $i/30: Container not running, checking logs..."
-              docker logs starter-app-production 2>&1 || echo "Could not retrieve logs"
+              echo "Attempt $i/30: Container not running"
+              docker ps -a | grep starter-app-production || echo "Container not found"
             fi
             echo "Attempt $i/30: Waiting for container..."
             sleep 1
