@@ -9,9 +9,8 @@ on:
         default: latest
 
 jobs:
-  staging:
+  build:
     runs-on: ubuntu-latest
-    environment: staging
     steps:
       - uses: actions/checkout@v4
       - name: Build deploy image
@@ -19,13 +18,38 @@ jobs:
           docker build \
             --build-arg VERSION="${{ inputs.version }}" \
             --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            -t "starter-app:${{ inputs.version }}" .
+            -t "starter-app:${{ inputs.version }}" \
+            -t "starter-app:latest" .
+      - name: Save image to artifacts
+        run: docker save "starter-app:${{ inputs.version }}" | gzip > /tmp/starter-app.tar.gz
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: /tmp/starter-app.tar.gz
+          retention-days: 1
+
+  staging:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+          path: /tmp
+      - name: Load image
+        run: docker load < /tmp/starter-app.tar.gz
       - name: Deploy to staging
         run: ./scripts/deploy.sh staging "${{ inputs.version }}"
       - name: Start staging container
         run: |
           docker rm -f starter-app-staging || true
           docker run -d --rm --name starter-app-staging -p 8000:8000 -e PORT=8000 -e APP_ENV=staging "starter-app:${{ inputs.version }}"
+      - name: Wait for container to be ready
+        run: sleep 2
       - name: Smoke test staging
         run: ./scripts/smoke.sh http://127.0.0.1:8000
       - name: Stop staging container
@@ -38,18 +62,21 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Build deploy image
-        run: |
-          docker build \
-            --build-arg VERSION="${{ inputs.version }}" \
-            --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            -t "starter-app:${{ inputs.version }}" .
+      - name: Download image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+          path: /tmp
+      - name: Load image
+        run: docker load < /tmp/starter-app.tar.gz
       - name: Deploy to production
         run: ./scripts/deploy.sh production "${{ inputs.version }}"
       - name: Start production container
         run: |
           docker rm -f starter-app-production || true
           docker run -d --rm --name starter-app-production -p 8001:8000 -e PORT=8000 -e APP_ENV=production "starter-app:${{ inputs.version }}"
+      - name: Wait for container to be ready
+        run: sleep 2
       - name: Smoke test production
         run: ./scripts/smoke.sh http://127.0.0.1:8001
       - name: Stop production container
