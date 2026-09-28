@@ -92,7 +92,7 @@ class CalculatorHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         status, payload = build_response(parsed.path, parse_qs(parsed.query))
-        body = json.dumps(payload).encode("utf-8")
+        body = json.dumps(payload, indent=2).encode("utf-8")
 
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
