@@ -41,26 +41,39 @@ jobs:
           name: docker-image
           path: /tmp
       - name: Load image
-        run: docker load < /tmp/starter-app.tar.gz
+        run: |
+          echo "Loading Docker image from artifact..."
+          docker load < /tmp/starter-app.tar.gz
+          echo "Available images:"
+          docker images | grep starter-app
       - name: Deploy to staging
         run: ./scripts/deploy.sh staging "${{ inputs.version }}"
       - name: Start staging container
         run: |
           docker rm -f starter-app-staging || true
+          echo "Starting container with image: starter-app:${{ inputs.version }}"
           docker run -d --rm --name starter-app-staging -p 8000:8000 -e PORT=8000 -e APP_ENV=staging "starter-app:${{ inputs.version }}"
+          echo "Container started, checking status..."
+          docker ps | grep starter-app-staging || echo "Container not found in ps output"
       - name: Wait for container to be ready
         run: |
           echo "Waiting for staging container to be ready..."
           for i in {1..30}; do
-            if curl -sf http://127.0.0.1:8000/health > /dev/null 2>&1; then
-              echo "✅ Container is ready"
-              exit 0
+            if docker ps | grep -q starter-app-staging; then
+              if curl -sf http://127.0.0.1:8000/health > /dev/null 2>&1; then
+                echo "✅ Container is ready"
+                exit 0
+              fi
+            else
+              echo "Attempt $i/30: Container not running, checking logs..."
+              docker logs starter-app-staging 2>&1 || echo "Could not retrieve logs"
             fi
             echo "Attempt $i/30: Waiting for container..."
             sleep 1
           done
           echo "❌ Container failed to start"
-          docker logs starter-app-staging
+          docker logs starter-app-staging 2>&1 || echo "Could not retrieve logs"
+          docker ps -a | grep starter-app-staging
           exit 1
       - name: Smoke test staging
         run: ./scripts/smoke.sh http://127.0.0.1:8000
@@ -80,26 +93,39 @@ jobs:
           name: docker-image
           path: /tmp
       - name: Load image
-        run: docker load < /tmp/starter-app.tar.gz
+        run: |
+          echo "Loading Docker image from artifact..."
+          docker load < /tmp/starter-app.tar.gz
+          echo "Available images:"
+          docker images | grep starter-app
       - name: Deploy to production
         run: ./scripts/deploy.sh production "${{ inputs.version }}"
       - name: Start production container
         run: |
           docker rm -f starter-app-production || true
+          echo "Starting container with image: starter-app:${{ inputs.version }}"
           docker run -d --rm --name starter-app-production -p 8001:8000 -e PORT=8000 -e APP_ENV=production "starter-app:${{ inputs.version }}"
+          echo "Container started, checking status..."
+          docker ps | grep starter-app-production || echo "Container not found in ps output"
       - name: Wait for container to be ready
         run: |
           echo "Waiting for production container to be ready..."
           for i in {1..30}; do
-            if curl -sf http://127.0.0.1:8001/health > /dev/null 2>&1; then
-              echo "✅ Container is ready"
-              exit 0
+            if docker ps | grep -q starter-app-production; then
+              if curl -sf http://127.0.0.1:8001/health > /dev/null 2>&1; then
+                echo "✅ Container is ready"
+                exit 0
+              fi
+            else
+              echo "Attempt $i/30: Container not running, checking logs..."
+              docker logs starter-app-production 2>&1 || echo "Could not retrieve logs"
             fi
             echo "Attempt $i/30: Waiting for container..."
             sleep 1
           done
           echo "❌ Container failed to start"
-          docker logs starter-app-production
+          docker logs starter-app-production 2>&1 || echo "Could not retrieve logs"
+          docker ps -a | grep starter-app-production
           exit 1
       - name: Smoke test production
         run: ./scripts/smoke.sh http://127.0.0.1:8001
