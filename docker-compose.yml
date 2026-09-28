@@ -1,0 +1,12 @@
+services:
+  starter-app:
+    build:
+      context: .
+      args:
+        VERSION: compose
+    image: starter-app:compose
+    environment:
+      APP_ENV: compose
+      PORT: 8000
+    ports:
+      - "8000:8000"

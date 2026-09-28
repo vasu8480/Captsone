@@ -1,0 +1,67 @@
+name: Starter App Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version label to deploy.
+        required: true
+        default: latest
+
+jobs:
+  staging:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build deploy image
+        run: |
+          docker build \
+            --build-arg VERSION="${{ inputs.version }}" \
+            --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -t "starter-app:${{ inputs.version }}" .
+      - name: Deploy to staging
+        run: ./scripts/deploy.sh staging "${{ inputs.version }}"
+      - name: Start staging container
+        run: |
+          docker rm -f starter-app-staging || true
+          docker run -d --rm --name starter-app-staging -p 8000:8000 -e PORT=8000 -e APP_ENV=staging "starter-app:${{ inputs.version }}"
+      - name: Smoke test staging
+        run: ./scripts/smoke.sh http://127.0.0.1:8000
+      - name: Stop staging container
+        if: always()
+        run: docker rm -f starter-app-staging || true
+
+  production:
+    needs: staging
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build deploy image
+        run: |
+          docker build \
+            --build-arg VERSION="${{ inputs.version }}" \
+            --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -t "starter-app:${{ inputs.version }}" .
+      - name: Deploy to production
+        run: ./scripts/deploy.sh production "${{ inputs.version }}"
+      - name: Start production container
+        run: |
+          docker rm -f starter-app-production || true
+          docker run -d --rm --name starter-app-production -p 8001:8000 -e PORT=8000 -e APP_ENV=production "starter-app:${{ inputs.version }}"
+      - name: Smoke test production
+        run: ./scripts/smoke.sh http://127.0.0.1:8001
+      - name: Stop production container
+        if: always()
+        run: docker rm -f starter-app-production || true
+
+  rollback:
+    needs: production
+    if: ${{ always() && needs.production.result == 'failure' }}
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Roll back production marker
+        run: ./scripts/rollback.sh production

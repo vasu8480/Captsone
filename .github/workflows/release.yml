@@ -1,0 +1,38 @@
+name: Starter App Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Package source archive
+        run: |
+          mkdir -p dist
+          tar -czf "dist/starter-app-${GITHUB_REF_NAME}-source.tgz" README.md requirements.txt pytest.ini src tests scripts .github/actions
+      - name: Build release image
+        run: |
+          docker build \
+            --build-arg VERSION="${GITHUB_REF_NAME}" \
+            --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -t "starter-app:${GITHUB_REF_NAME}" \
+            -t "starter-app:${GITHUB_SHA}" .
+          docker save "starter-app:${GITHUB_REF_NAME}" | gzip > "dist/starter-app-${GITHUB_REF_NAME}-image.tar.gz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-assets
+          path: dist/
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/starter-app-${{ github.ref_name }}-source.tgz
+            dist/starter-app-${{ github.ref_name }}-image.tar.gz
+          generate_release_notes: true
