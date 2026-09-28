@@ -203,6 +203,7 @@ curl http://127.0.0.1:8000/health</code></pre>
           </body>
           </html>
           EOF
+      - name: Build API page
         run: |
           cat > docs/api.html << 'EOF'
           <!DOCTYPE html>
